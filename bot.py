@@ -324,35 +324,51 @@ async def delalert_handler(message: Message):
     await delete_alert(alert_id, message.from_user.id)
     await message.answer("✅ Alert o‘chirildi.")
 
-
 @dp.message(Command("top"))
 async def top_handler(message: Message):
-    params = {
-        "vs_currency": "usd",
-        "order": "market_cap_desc",
-        "per_page": 10,
-        "page": 1
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
-            params=params
-        ) as resp:
-            coins = await resp.json() if resp.status == 200 else []
+    try:
+        params = {
+            "vs_currency": "usd",
+            "order": "market_cap_desc",
+            "per_page": 10,
+            "page": 1,
+            "sparkline": "false"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                
+                if resp.status != 200:
+                    await message.answer(f"❌ API xatosi: {resp.status}")
+                    return
+                
+                coins = await resp.json()
 
-    if not coins:
-        await message.answer("Ma’lumot olishda xatolik.")
-        return
+        if not coins:
+            await message.answer("Ma’lumot topilmadi.")
+            return
 
-    text = "🏆 **Top 10 Kriptovalyuta**\n\n"
-    for i, c in enumerate(coins, 1):
-        change = c.get("price_change_percentage_24h") or 0
-        emoji = "🟢" if change >= 0 else "🔴"
-        text += (
-            f"{i}. **{c['name']}** ({c['symbol'].upper()})\n"
-            f"   ${c['current_price']:,.2f}  {emoji} {change:.2f}%\n\n"
-        )
-    await message.answer(text, parse_mode="Markdown")
+        text = "🏆 **Top 10 Kriptovalyuta**\n\n"
+        for i, c in enumerate(coins, 1):
+            change = c.get("price_change_percentage_24h") or 0
+            emoji = "🟢" if change >= 0 else "🔴"
+            price = c.get("current_price", 0)
+            
+            text += (
+                f"{i}. **{c['name']}** ({c['symbol'].upper()})\n"
+                f"   ${price:,.2f}  {emoji} {change:.2f}%\n\n"
+            )
+        
+        await message.answer(text, parse_mode="Markdown")
+
+    except Exception as e:
+        logging.error(f"Top command error: {e}")
+        await message.answer("❌ Xatolik yuz berdi. Birozdan keyin qayta urinib ko‘ring.")
+
 
 
 # ==================== MINI APP DAN KELGAN MA’LUMOT ====================
