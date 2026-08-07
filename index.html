@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Crypto Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--tg-theme-bg-color, #0f0f0f);
+      color: var(--tg-theme-text-color, #ffffff);
+      padding: 16px;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      opacity: 0.7;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--tg-theme-secondary-bg-color, #1c1c1e);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .coin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .coin-name {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .price {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 4px 0;
+    }
+
+    .change-up {
+      color: #00c853;
+      font-weight: 600;
+    }
+
+    .change-down {
+      color: #ff5252;
+      font-weight: 600;
+    }
+
+    .section-title {
+      font-size: 17px;
+      font-weight: 600;
+      margin: 24px 0 12px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--tg-theme-secondary-bg-color, #1c1c1e);
+      color: var(--tg-theme-text-color, #fff);
+      font-size: 16px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+
+    input::placeholder {
+      color: rgba(255,255,255,0.4);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 14px;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #ffffff);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: opacity 0.2s;
+    }
+
+    .btn:active {
+      opacity: 0.85;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 30px;
+      opacity: 0.6;
+    }
+
+    .error {
+      color: #ff5252;
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>💰 Crypto Narxlari</h1>
+  <div class="subtitle">Real-time narxlar • Alert qo‘yish</div>
+
+  <div id="coinsList" class="loading">
+    Yuklanmoqda...
+  </div>
+
+  <div class="section-title">🔔 Alert qo‘yish</div>
+
+  <div class="card">
+    <input type="text" id="coinInput" placeholder="Coin (btc, eth, sol, pepe...)">
+    
+    <select id="direction">
+      <option value="above">↑ Oshganda (above)</option>
+      <option value="below">↓ Tushganda (below)</option>
+    </select>
+    
+    <input type="number" id="targetPrice" placeholder="Narx (masalan: 65000)" step="any">
+    
+    <button class="btn" onclick="setAlert()">Alert qo‘yish</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor('#0f0f0f');
+
+    // Asosiy coinlar
+    const mainCoins = [
+      { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' },
+      { id: 'ethereum', symbol: 'ETH', name: 'Ethereum' },
+      { id: 'solana', symbol: 'SOL', name: 'Solana' },
+      { id: 'binancecoin', symbol: 'BNB', name: 'BNB' },
+      { id: 'ripple', symbol: 'XRP', name: 'XRP' },
+      { id: 'dogecoin', symbol: 'DOGE', name: 'Dogecoin' },
+    ];
+
+    async function loadPrices() {
+      const ids = mainCoins.map(c => c.id).join(',');
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('API xatosi');
+        
+        const data = await res.json();
+        let html = '';
+
+        mainCoins.forEach(coin => {
+          const info = data[coin.id];
+          if (!info) return;
+
+          const change = info.usd_24h_change || 0;
+          const changeClass = change >= 0 ? 'change-up' : 'change-down';
+          const emoji = change >= 0 ? '🟢' : '🔴';
+          const sign = change >= 0 ? '+' : '';
+
+          html += `
+            <div class="card">
+              <div class="coin-header">
+                <div class="coin-name">\( {coin.name} <span style="opacity:0.6">( \){coin.symbol})</span></div>
+                <div class="\( {changeClass}"> \){emoji} \( {sign} \){change.toFixed(2)}%</div>
+              </div>
+              <div class="price">$${Number(info.usd).toLocaleString(undefined, {maximumFractionDigits: 4})}</div>
+            </div>
+          `;
+        });
+
+        document.getElementById('coinsList').innerHTML = html;
+      } catch (e) {
+        document.getElementById('coinsList').innerHTML = '<div class="error">Ma’lumot yuklanmadi. Qayta urinib ko‘ring.</div>';
+      }
+    }
+
+    function setAlert() {
+      const coin = document.getElementById('coinInput').value.trim().toLowerCase();
+      const direction = document.getElementById('direction').value;
+      const price = parseFloat(document.getElementById('targetPrice').value);
+
+      if (!coin) {
+        tg.showAlert('Coin nomini yozing!');
+        return;
+      }
+      if (!price || price <= 0) {
+        tg.showAlert('To‘g‘ri narx kiriting!');
+        return;
+      }
+
+      // Botga ma’lumot yuborish
+      tg.sendData(JSON.stringify({
+        action: 'set_alert',
+        coin: coin,
+        direction: direction,
+        price: price
+      }));
+
+      tg.showAlert('✅ Alert yuborildi! Botga qayting.');
+      setTimeout(() => tg.close(), 800);
+    }
+
+    // Birinchi yuklash
+    loadPrices();
+
+    // Har 30 soniyada yangilash
+    setInterval(loadPrices, 30000);
+  </script>
+</body>
+</html>
