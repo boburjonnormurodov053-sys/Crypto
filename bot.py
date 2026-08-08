@@ -327,46 +327,63 @@ async def delalert_handler(message: Message):
 @dp.message(Command("top"))
 async def top_handler(message: Message):
     try:
+        await message.answer("⏳ Top 10 yuklanmoqda...")
+
+        url = "https://api.coingecko.com/api/v3/coins/markets"
         params = {
             "vs_currency": "usd",
             "order": "market_cap_desc",
             "per_page": 10,
             "page": 1,
-            "sparkline": "false"
+            "sparkline": "false",
+            "price_change_percentage": "24h"
         }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.coingecko.com/api/v3/coins/markets",
-                params=params,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                
-                if resp.status != 200:
-                    await message.answer(f"❌ API xatosi: {resp.status}")
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        timeout = aiohttp.ClientTimeout(total=15)
+
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, params=params, headers=headers) as resp:
+                status = resp.status
+                text_resp = await resp.text()
+
+                if status != 200:
+                    logging.error(f"CoinGecko /top error: {status} | {text_resp[:200]}")
+                    await message.answer(f"❌ API xatosi ({status}). Keyinroq qayta urinib ko‘ring.")
                     return
-                
+
                 coins = await resp.json()
 
-        if not coins:
-            await message.answer("Ma’lumot topilmadi.")
+        if not coins or not isinstance(coins, list):
+            await message.answer("❌ Ma’lumot olinmadi.")
             return
 
-        text = "🏆 **Top 10 Kriptovalyuta**\n\n"
+        text = "🏆 **Top 10 Kriptovalyuta** (Market Cap)\n\n"
+
         for i, c in enumerate(coins, 1):
+            name = c.get("name", "Noma’lum")
+            symbol = c.get("symbol", "").upper()
+            price = c.get("current_price") or 0
             change = c.get("price_change_percentage_24h") or 0
+
             emoji = "🟢" if change >= 0 else "🔴"
-            price = c.get("current_price", 0)
-            
+            sign = "+" if change >= 0 else ""
+
             text += (
-                f"{i}. **{c['name']}** ({c['symbol'].upper()})\n"
-                f"   ${price:,.2f}  {emoji} {change:.2f}%\n\n"
+                f"**{i}. {name}** ({symbol})\n"
+                f"💵 ${price:,.4f}   {emoji} {sign}{change:.2f}%\n\n"
             )
-        
+
         await message.answer(text, parse_mode="Markdown")
 
+    except asyncio.TimeoutError:
+        await message.answer("⏰ Vaqt tugadi. Qayta urinib ko‘ring.")
     except Exception as e:
-        logging.error(f"Top command error: {e}")
+        logging.error(f"/top xatosi: {e}")
         await message.answer("❌ Xatolik yuz berdi. Birozdan keyin qayta urinib ko‘ring.")
 
 
